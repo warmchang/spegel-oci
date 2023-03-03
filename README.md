@@ -2,6 +2,12 @@
 
 Spegel, mirror in Swedish, is a stateless cluster local OCI registry mirror.
 
+## Use Cases
+
+* Speed up Pod start up time through.
+* Mitigate effects of registriy downtime.
+* Edge nodes sharing images among themselves
+
 ## Background
 
 Kubernetes does a great job at distributing workloads on multiple nodes. Allowing node failures to occur without affecting uptime. A critical component for this to work is that each node has to be able to pull the workload images before they can start. Each replica running on a node will incur a pull operation. The images may be pulled from geographically close registries within the cloud provider, public registries, or self-hosted registries. This process has a flaw in that each node has to make this round trip separately. Why can't the nodes share the image among themselves?
@@ -47,6 +53,14 @@ Spegel can run as a stateless application by exploiting the fact that an image p
 Images are composed of multiple layers which are stored as individual files on the node disk. Each layer has a digest which is its identifier. Every node advertises the digests which are stored locally on disk. Kademlia is used to enable a distributed advertisement and lookup of digests. An image pull consists of multiple HTTP requests with one request per digest. The request is first sent to Spegel when an image is pulled if it is configured to act as the mirror for the registry. Spegel will lookup the digest within the cluster to see if any node has advertised that they have it. If a node is found the request will be forwarded to that Spegel instance which will serve the file with the specified digest. If a node is not found a 404 response will be returned and Containerd will fallback to using the actual remote registry.
 
 In its core Spegel is a pull only OCI registry which runs locally on every Node in the Kubernetes cluster. Containerd is configured to use the local registry as a mirror, which would serve the image from within the cluster or from the source registry.
+
+## Alternatives
+
+### Private Registry
+
+### Dragonfly
+
+### Kraken
 
 ## License
 
