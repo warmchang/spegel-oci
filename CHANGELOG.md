@@ -15,9 +15,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- [#596](https://github.com/spegel-org/spegel/pull/596) Remove throttling from blobs.
+
 ### Fixed
 
 ### Security
+
+## v0.0.25
+
+### Added 
+
+- [#578](https://github.com/spegel-org/spegel/pull/578) Add possibility to override environment variable NODE_IP.
+
+### Changed
+
+- [#575](https://github.com/spegel-org/spegel/pull/575) Update to Go v1.23.2.
+
+### Fixed
+
+- [#581](https://github.com/spegel-org/spegel/pull/581) Skip status response verification for containerd v2
 
 ## v0.0.24
 

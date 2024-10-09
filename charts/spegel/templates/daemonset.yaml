@@ -58,9 +58,7 @@ spec:
           - --append-mirrors={{ .Values.spegel.appendMirrors }}
         env:
         - name: NODE_IP
-          valueFrom:
-            fieldRef:
-              fieldPath: status.hostIP
+        {{- include "networking.nodeIp" . | nindent 10 }}
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
         volumeMounts:
@@ -98,17 +96,12 @@ spec:
           - --leader-election-name={{ .Release.Name }}-leader-election
           - --resolve-latest-tag={{ .Values.spegel.resolveLatestTag }}
           - --local-addr=$(NODE_IP):{{ .Values.service.registry.hostPort }}
-          {{- with .Values.spegel.blobSpeed }}
-          - --blob-speed={{ . }}
-          {{- end }}
           {{- with .Values.spegel.containerdContentPath }}
           - --containerd-content-path={{ . }}
           {{- end }}
         env:
         - name: NODE_IP
-          valueFrom:
-            fieldRef:
-              fieldPath: status.hostIP
+        {{- include "networking.nodeIp" . | nindent 10 }}
         ports:
           - name: registry
             containerPort: {{ .Values.service.registry.port }}
