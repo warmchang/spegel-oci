@@ -9,12 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- [#678](https://github.com/spegel-org/spegel/pull/678) Add support for setting common labels in Helm chart.
-- [#681](https://github.com/spegel-org/spegel/pull/681) Add import as linter.
-
 ### Changed
 
-- [#683](https://github.com/spegel-org/spegel/pull/683) Change bootstrapper to allow returning multiple peers.
+- [#694](https://github.com/spegel-org/spegel/pull/694) Replace IP in multi address with manet.
 
 ### Deprecated
 
@@ -22,7 +19,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- [#689](https://github.com/spegel-org/spegel/pull/689) Make cluster domain configurable.
+- [#696](https://github.com/spegel-org/spegel/pull/696) Fix DNS bootstrap self check.
+
 ### Security
+
+## v0.0.29
+
+### Added
+
+- [#678](https://github.com/spegel-org/spegel/pull/678) Add support for setting common labels in Helm chart.
+- [#681](https://github.com/spegel-org/spegel/pull/681) Add import as linter.
+
+### Changed
+
+- [#683](https://github.com/spegel-org/spegel/pull/683) Change bootstrapper to allow returning multiple peers.
+- [#684](https://github.com/spegel-org/spegel/pull/684) Allow bootstrappers to return multiaddress only containing IP.
+- [#680](https://github.com/spegel-org/spegel/pull/680) Switch to using headless service for bootstrapping.
 
 ## v0.0.28
 
