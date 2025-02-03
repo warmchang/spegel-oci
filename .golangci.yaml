@@ -54,8 +54,6 @@ linters-settings:
         alias: tlog
       - pkg: github.com/pelletier/go-toml/v2/unstable
         alias: tomlu
-      - pkg: github.com/Masterminds/semver/v3
-        alias: semver
       - pkg: github.com/multiformats/go-multiaddr/net
         alias: manet
       - pkg: github.com/multiformats/go-multiaddr
@@ -68,6 +66,8 @@ linters-settings:
         alias: cid
       - pkg: github.com/libp2p/go-libp2p-kad-dht
         alias: dht
+      - pkg: github.com/libp2p/go-libp2p/p2p/net/mock
+        alias: mocknet
       - pkg: go.etcd.io/bbolt
         alias: bolt
       - pkg: k8s.io/cri-api/pkg/apis/runtime/v1
