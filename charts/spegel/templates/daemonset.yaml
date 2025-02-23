@@ -20,6 +20,9 @@ spec:
       {{- end }}
       labels:
         {{- include "spegel.selectorLabels" . | nindent 8 }}
+        {{- with .Values.commonLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -88,12 +91,8 @@ spec:
           - --containerd-sock={{ .Values.spegel.containerdSock }}
           - --containerd-namespace={{ .Values.spegel.containerdNamespace }}
           - --containerd-registry-config-path={{ .Values.spegel.containerdRegistryConfigPath }}
-          - --bootstrap-kind=kubernetes
-          {{- with .Values.spegel.kubeconfigPath }}
-          - --kubeconfig-path={{ . }}
-          {{- end }}
-          - --leader-election-namespace={{ include "spegel.namespace" . }}
-          - --leader-election-name={{ .Release.Name }}-leader-election
+          - --bootstrap-kind=dns
+          - --dns-bootstrap-domain={{ include "spegel.fullname" . }}-bootstrap.{{ include "spegel.namespace" . }}.svc.{{ .Values.clusterDomain }}
           - --resolve-latest-tag={{ .Values.spegel.resolveLatestTag }}
           - --local-addr=$(NODE_IP):{{ .Values.service.registry.hostPort }}
           {{- with .Values.spegel.containerdContentPath }}

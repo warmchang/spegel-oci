@@ -9,12 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- [#678](https://github.com/spegel-org/spegel/pull/678) Add support for setting common labels in Helm chart.
-- [#681](https://github.com/spegel-org/spegel/pull/681) Add import as linter.
+- [#717](https://github.com/spegel-org/spegel/pull/717) Extend tests for distribution.
 
 ### Changed
-
-- [#683](https://github.com/spegel-org/spegel/pull/683) Change bootstrapper to allow returning multiple peers.
 
 ### Deprecated
 
@@ -23,6 +20,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+
+## v0.0.30
+
+### Changed
+
+- [#694](https://github.com/spegel-org/spegel/pull/694) Replace IP in multi address with manet.
+- [#693](https://github.com/spegel-org/spegel/pull/693) Add commonLabels for pods.
+- [#699](https://github.com/spegel-org/spegel/pull/699) Remove as mismatch error and replace with errors as.
+- [#701](https://github.com/spegel-org/spegel/pull/701) Rewrite e2e tests in Go.
+- [#704](https://github.com/spegel-org/spegel/pull/704) Update Containerd client to v2.
+
+### Fixed
+
+- [#689](https://github.com/spegel-org/spegel/pull/689) Make cluster domain configurable.
+- [#696](https://github.com/spegel-org/spegel/pull/696) Fix DNS bootstrap self check.
+- [#702](https://github.com/spegel-org/spegel/pull/702) Refactor and add tests for p2p ready.
+- [#703](https://github.com/spegel-org/spegel/pull/703) Fix p2p router close panic and add tests.
+
+## v0.0.29
+
+### Added
+
+- [#678](https://github.com/spegel-org/spegel/pull/678) Add support for setting common labels in Helm chart.
+- [#681](https://github.com/spegel-org/spegel/pull/681) Add import as linter.
+
+### Changed
+
+- [#683](https://github.com/spegel-org/spegel/pull/683) Change bootstrapper to allow returning multiple peers.
+- [#684](https://github.com/spegel-org/spegel/pull/684) Allow bootstrappers to return multiaddress only containing IP.
+- [#680](https://github.com/spegel-org/spegel/pull/680) Switch to using headless service for bootstrapping.
 
 ## v0.0.28
 
