@@ -29,8 +29,6 @@ import (
 	"github.com/spf13/afero"
 	"google.golang.org/grpc"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
-
-	"github.com/spegel-org/spegel/internal/channel"
 )
 
 const (
@@ -179,10 +177,6 @@ func (c *Containerd) Subscribe(ctx context.Context) (<-chan ImageEvent, <-chan e
 	}
 	envelopeCh, cErrCh := client.EventService().Subscribe(ctx, c.eventFilter)
 	go func() {
-		defer func() {
-			close(imgCh)
-			close(errCh)
-		}()
 		for envelope := range envelopeCh {
 			var img Image
 			imageName, eventType, err := getEventImage(envelope.Event)
@@ -197,13 +191,13 @@ func (c *Containerd) Subscribe(ctx context.Context) (<-chan ImageEvent, <-chan e
 					errCh <- err
 					continue
 				}
-				img, err = Parse(cImg.Name(), cImg.Target().Digest)
+				img, err = ParseImageRequireDigest(cImg.Name(), cImg.Target().Digest)
 				if err != nil {
 					errCh <- err
 					continue
 				}
 			case DeleteEvent:
-				img, err = Parse(imageName, "")
+				img, err = ParseImageRequireDigest(imageName, "")
 				if err != nil {
 					errCh <- err
 					continue
@@ -211,8 +205,15 @@ func (c *Containerd) Subscribe(ctx context.Context) (<-chan ImageEvent, <-chan e
 			}
 			imgCh <- ImageEvent{Image: img, Type: eventType}
 		}
+		close(imgCh)
 	}()
-	return imgCh, channel.Merge(errCh, cErrCh), nil
+	go func() {
+		for err := range cErrCh {
+			errCh <- err
+		}
+		close(errCh)
+	}()
+	return imgCh, errCh, nil
 }
 
 func (c *Containerd) ListImages(ctx context.Context) ([]Image, error) {
@@ -226,7 +227,7 @@ func (c *Containerd) ListImages(ctx context.Context) ([]Image, error) {
 	}
 	imgs := []Image{}
 	for _, cImg := range cImgs {
-		img, err := Parse(cImg.Name(), cImg.Target().Digest)
+		img, err := ParseImageRequireDigest(cImg.Name(), cImg.Target().Digest)
 		if err != nil {
 			return nil, err
 		}
