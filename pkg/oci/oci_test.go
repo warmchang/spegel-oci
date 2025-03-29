@@ -89,7 +89,7 @@ func TestOCIClient(t *testing.T) {
 	for _, img := range imgs {
 		dgst, err := digest.Parse(img["digest"])
 		require.NoError(t, err)
-		img, err := Parse(img["name"], dgst)
+		img, err := ParseImageRequireDigest(img["name"], dgst)
 		require.NoError(t, err)
 		memoryClient.AddImage(img)
 	}
@@ -116,18 +116,23 @@ func TestOCIClient(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, imgs, 5)
 			for _, img := range imgs {
-				_, err := ociClient.Resolve(ctx, img.Name)
+				tagName, ok := img.TagName()
+				require.True(t, ok)
+				_, err := ociClient.Resolve(ctx, tagName)
 				require.NoError(t, err)
 			}
 
-			noPlatformName := "example.com/org/no-platform:test"
-			dgst, err := ociClient.Resolve(ctx, noPlatformName)
-			require.NoError(t, err)
-			img := Image{
-				Name:   noPlatformName,
-				Digest: dgst,
+			noPlatformImg := Image{
+				Registry:   "example.com",
+				Repository: "org/no-platform",
+				Tag:        "test",
 			}
-			_, err = WalkImage(ctx, ociClient, img)
+			tagName, ok := noPlatformImg.TagName()
+			require.True(t, ok)
+			dgst, err := ociClient.Resolve(ctx, tagName)
+			require.NoError(t, err)
+			noPlatformImg.Digest = dgst
+			_, err = WalkImage(ctx, ociClient, noPlatformImg)
 			require.EqualError(t, err, "failed to walk image manifests: could not find any platforms with local content in manifest sha256:addc990c58744bdf96364fe89bd4aab38b1e824d51c688edb36c75247cd45fa9")
 
 			contentTests := []struct {
@@ -281,7 +286,7 @@ func TestOCIClient(t *testing.T) {
 				t.Run(tt.imageName, func(t *testing.T) {
 					t.Parallel()
 
-					img, err := Parse(tt.imageName, digest.Digest(tt.imageDigest))
+					img, err := ParseImageRequireDigest(tt.imageName, digest.Digest(tt.imageDigest))
 					require.NoError(t, err)
 					keys, err := WalkImage(ctx, ociClient, img)
 					require.NoError(t, err)

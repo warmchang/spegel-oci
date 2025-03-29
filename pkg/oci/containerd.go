@@ -15,7 +15,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/Masterminds/semver/v3"
 	eventtypes "github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/core/content"
@@ -28,9 +27,8 @@ import (
 	tomlu "github.com/pelletier/go-toml/v2/unstable"
 	"github.com/spf13/afero"
 	"google.golang.org/grpc"
+	utilversion "k8s.io/apimachinery/pkg/util/version"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
-
-	"github.com/spegel-org/spegel/internal/channel"
 )
 
 const (
@@ -107,16 +105,12 @@ func (c *Containerd) Verify(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	version, err := semver.NewVersion(versionResp.GetRuntimeVersion())
+	ok, err = canVerifyContainerdConfiguration(versionResp.RuntimeVersion)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not check Containerd version %s: %w", versionResp.RuntimeVersion, err)
 	}
-	constraint, err := semver.NewConstraint(">1-0")
-	if err != nil {
-		return err
-	}
-	if constraint.Check(version) {
-		log.Info("unable to verify status response", "runtime_version", version.String())
+	if !ok {
+		log.Info("skipping verification of Containerd configuration", "version", versionResp.RuntimeVersion)
 		return nil
 	}
 
@@ -129,6 +123,14 @@ func (c *Containerd) Verify(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func canVerifyContainerdConfiguration(version string) (bool, error) {
+	v, err := utilversion.Parse(version)
+	if err != nil {
+		return false, err
+	}
+	return v.LessThan(utilversion.MustParse("2.0")), nil
 }
 
 func verifyStatusResponse(resp *runtimeapi.StatusResponse, configPath string) error {
@@ -179,10 +181,6 @@ func (c *Containerd) Subscribe(ctx context.Context) (<-chan ImageEvent, <-chan e
 	}
 	envelopeCh, cErrCh := client.EventService().Subscribe(ctx, c.eventFilter)
 	go func() {
-		defer func() {
-			close(imgCh)
-			close(errCh)
-		}()
 		for envelope := range envelopeCh {
 			var img Image
 			imageName, eventType, err := getEventImage(envelope.Event)
@@ -197,13 +195,13 @@ func (c *Containerd) Subscribe(ctx context.Context) (<-chan ImageEvent, <-chan e
 					errCh <- err
 					continue
 				}
-				img, err = Parse(cImg.Name(), cImg.Target().Digest)
+				img, err = ParseImageRequireDigest(cImg.Name(), cImg.Target().Digest)
 				if err != nil {
 					errCh <- err
 					continue
 				}
 			case DeleteEvent:
-				img, err = Parse(imageName, "")
+				img, err = ParseImageRequireDigest(imageName, "")
 				if err != nil {
 					errCh <- err
 					continue
@@ -211,8 +209,15 @@ func (c *Containerd) Subscribe(ctx context.Context) (<-chan ImageEvent, <-chan e
 			}
 			imgCh <- ImageEvent{Image: img, Type: eventType}
 		}
+		close(imgCh)
 	}()
-	return imgCh, channel.Merge(errCh, cErrCh), nil
+	go func() {
+		for err := range cErrCh {
+			errCh <- err
+		}
+		close(errCh)
+	}()
+	return imgCh, errCh, nil
 }
 
 func (c *Containerd) ListImages(ctx context.Context) ([]Image, error) {
@@ -226,7 +231,7 @@ func (c *Containerd) ListImages(ctx context.Context) ([]Image, error) {
 	}
 	imgs := []Image{}
 	for _, cImg := range cImgs {
-		img, err := Parse(cImg.Name(), cImg.Target().Digest)
+		img, err := ParseImageRequireDigest(cImg.Name(), cImg.Target().Digest)
 		if err != nil {
 			return nil, err
 		}

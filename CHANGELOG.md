@@ -9,8 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+- [#812](https://github.com/spegel-org/spegel/pull/812) Upgrade to Go 1.24.1 and switch to use go tool for helm docs.
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## v0.1.1
+
+### Fixed
+
+- [#807](https://github.com/spegel-org/spegel/pull/807) Update golangci lint and fix new issues.
+- [#810](https://github.com/spegel-org/spegel/pull/810) Increase timeout to avoid flakiness in conformance tests.
+- [#806](https://github.com/spegel-org/spegel/pull/806) Fix verification of Containerd configuration with suffixes.
+
+## v0.1.0
+
+### Added
+
 - [#717](https://github.com/spegel-org/spegel/pull/717) Extend tests for distribution.
 - [#753](https://github.com/spegel-org/spegel/pull/753) Set GOMAXPROCS and GOMEMLIMIT when limits are set.
+- [#792](https://github.com/spegel-org/spegel/pull/792) Add dev deploy recipe to simplify local development.
+- [#791](https://github.com/spegel-org/spegel/pull/791) Add debug view to help validating Spegel.
 
 ### Changed
 
@@ -19,17 +45,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [#373](https://github.com/spegel-org/spegel/pull/373) Apply mirror configuration on all registires by default.
 - [#762](https://github.com/spegel-org/spegel/pull/762) Set appropriate buckets for response size
 - [#778](https://github.com/spegel-org/spegel/pull/778) Replace interface{} with any alias.
-
-### Deprecated
+- [#784](https://github.com/spegel-org/spegel/pull/784) Refactor distribution and move to OCI package.
+- [#787](https://github.com/spegel-org/spegel/pull/787) Refactor OCI image to allow parsing without digest.
+- [#794](https://github.com/spegel-org/spegel/pull/794) Set default memory request and limit in Helm chart.
 
 ### Removed
 
+- [#796](https://github.com/spegel-org/spegel/pull/796) Remove name from OCI image struct.
+- [#799](https://github.com/spegel-org/spegel/pull/799) Remove Kubernetes bootstrapper.
+
 ### Fixed
 
-- [#743](https://github.com/spegel-org/spegel/pull/743) Charts - removed metrics label from bootstrap service
+- [#743](https://github.com/spegel-org/spegel/pull/743) Remove metrics label from bootstrap service in Helm chart.
 - [#748](https://github.com/spegel-org/spegel/pull/748) Fix topology annotation.
-
-### Security
+- [#785](https://github.com/spegel-org/spegel/pull/785) Fix verification of digests when parsing distribution path.
+- [#798](https://github.com/spegel-org/spegel/pull/798) Restart Spegel if Containerd event subscription is disconnected.
+- [#800](https://github.com/spegel-org/spegel/pull/800) Fix so that host is closed even when a bootstrap error occurs.
+- [#801](https://github.com/spegel-org/spegel/pull/801) Fix helm values naming for additionalMirrorTargets and mirroredRegistries.
 
 ## v0.0.30
 
