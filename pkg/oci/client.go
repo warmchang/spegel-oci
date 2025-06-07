@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"runtime"
 	"strconv"
 	"strings"
@@ -30,8 +31,10 @@ type Client struct {
 }
 
 func NewClient() *Client {
+	hc := httpx.BaseClient()
+	hc.Timeout = 0
 	return &Client{
-		hc: &http.Client{},
+		hc: hc,
 		tc: sync.Map{},
 	}
 }
@@ -43,7 +46,7 @@ type PullMetric struct {
 	Duration      time.Duration
 }
 
-func (c *Client) Pull(ctx context.Context, img Image, mirror string) ([]PullMetric, error) {
+func (c *Client) Pull(ctx context.Context, img Image, mirror *url.URL) ([]PullMetric, error) {
 	pullMetrics := []PullMetric{}
 
 	queue := []DistributionPath{
@@ -60,66 +63,74 @@ func (c *Client) Pull(ctx context.Context, img Image, mirror string) ([]PullMetr
 		queue = queue[1:]
 
 		start := time.Now()
-		rc, desc, err := c.Get(ctx, dist, mirror)
-		if err != nil {
-			return nil, err
-		}
+		desc, err := func() (ocispec.Descriptor, error) {
+			rc, desc, err := c.Get(ctx, dist, mirror, nil)
+			if err != nil {
+				return ocispec.Descriptor{}, err
+			}
+			defer httpx.DrainAndClose(rc)
 
-		switch dist.Kind {
-		case DistributionKindBlob:
-			_, copyErr := io.Copy(io.Discard, rc)
-			closeErr := rc.Close()
-			err := errors.Join(copyErr, closeErr)
-			if err != nil {
-				return nil, err
-			}
-		case DistributionKindManifest:
-			b, readErr := io.ReadAll(rc)
-			closeErr := rc.Close()
-			err = errors.Join(readErr, closeErr)
-			if err != nil {
-				return nil, err
-			}
-			switch desc.MediaType {
-			case images.MediaTypeDockerSchema2ManifestList, ocispec.MediaTypeImageIndex:
-				var idx ocispec.Index
-				if err := json.Unmarshal(b, &idx); err != nil {
-					return nil, err
-				}
-				for _, m := range idx.Manifests {
-					// TODO: Add platform option.
-					//nolint: staticcheck // Simplify in the future.
-					if !(m.Platform.OS == runtime.GOOS && m.Platform.Architecture == runtime.GOARCH) {
-						continue
-					}
-					queue = append(queue, DistributionPath{
-						Kind:     DistributionKindManifest,
-						Name:     dist.Name,
-						Digest:   m.Digest,
-						Registry: dist.Registry,
-					})
-				}
-			case images.MediaTypeDockerSchema2Manifest, ocispec.MediaTypeImageManifest:
-				var manifest ocispec.Manifest
-				err := json.Unmarshal(b, &manifest)
+			switch dist.Kind {
+			case DistributionKindBlob:
+				// Right now we are just discarding the contents because we do not have a writable store.
+				_, copyErr := io.Copy(io.Discard, rc)
+				closeErr := rc.Close()
+				err := errors.Join(copyErr, closeErr)
 				if err != nil {
-					return nil, err
+					return ocispec.Descriptor{}, err
 				}
-				queue = append(queue, DistributionPath{
-					Kind:     DistributionKindBlob,
-					Name:     dist.Name,
-					Digest:   manifest.Config.Digest,
-					Registry: dist.Registry,
-				})
-				for _, layer := range manifest.Layers {
+			case DistributionKindManifest:
+				b, readErr := io.ReadAll(rc)
+				closeErr := rc.Close()
+				err = errors.Join(readErr, closeErr)
+				if err != nil {
+					return ocispec.Descriptor{}, err
+				}
+				switch desc.MediaType {
+				case images.MediaTypeDockerSchema2ManifestList, ocispec.MediaTypeImageIndex:
+					var idx ocispec.Index
+					if err := json.Unmarshal(b, &idx); err != nil {
+						return ocispec.Descriptor{}, err
+					}
+					for _, m := range idx.Manifests {
+						// TODO: Add platform option.
+						//nolint: staticcheck // Simplify in the future.
+						if !(m.Platform.OS == runtime.GOOS && m.Platform.Architecture == runtime.GOARCH) {
+							continue
+						}
+						queue = append(queue, DistributionPath{
+							Kind:     DistributionKindManifest,
+							Name:     dist.Name,
+							Digest:   m.Digest,
+							Registry: dist.Registry,
+						})
+					}
+				case images.MediaTypeDockerSchema2Manifest, ocispec.MediaTypeImageManifest:
+					var manifest ocispec.Manifest
+					err := json.Unmarshal(b, &manifest)
+					if err != nil {
+						return ocispec.Descriptor{}, err
+					}
 					queue = append(queue, DistributionPath{
 						Kind:     DistributionKindBlob,
 						Name:     dist.Name,
-						Digest:   layer.Digest,
+						Digest:   manifest.Config.Digest,
 						Registry: dist.Registry,
 					})
+					for _, layer := range manifest.Layers {
+						queue = append(queue, DistributionPath{
+							Kind:     DistributionKindBlob,
+							Name:     dist.Name,
+							Digest:   layer.Digest,
+							Registry: dist.Registry,
+						})
+					}
 				}
 			}
+			return desc, nil
+		}()
+		if err != nil {
+			return nil, err
 		}
 
 		metric := PullMetric{
@@ -134,38 +145,31 @@ func (c *Client) Pull(ctx context.Context, img Image, mirror string) ([]PullMetr
 	return pullMetrics, nil
 }
 
-func (c *Client) Head(ctx context.Context, dist DistributionPath, mirror string) (ocispec.Descriptor, error) {
-	rc, desc, err := c.fetch(ctx, http.MethodHead, dist, mirror)
+func (c *Client) Head(ctx context.Context, dist DistributionPath, mirror *url.URL) (ocispec.Descriptor, error) {
+	rc, desc, err := c.fetch(ctx, http.MethodHead, dist, mirror, nil)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
-	defer rc.Close()
-	_, err = io.Copy(io.Discard, rc)
-	if err != nil {
-		return ocispec.Descriptor{}, err
-	}
+	defer httpx.DrainAndClose(rc)
 	return desc, nil
 }
 
-func (c *Client) Get(ctx context.Context, dist DistributionPath, mirror string) (io.ReadCloser, ocispec.Descriptor, error) {
-	rc, desc, err := c.fetch(ctx, http.MethodGet, dist, mirror)
+func (c *Client) Get(ctx context.Context, dist DistributionPath, mirror *url.URL, brr []httpx.ByteRange) (io.ReadCloser, ocispec.Descriptor, error) {
+	rc, desc, err := c.fetch(ctx, http.MethodGet, dist, mirror, brr)
 	if err != nil {
 		return nil, ocispec.Descriptor{}, err
 	}
 	return rc, desc, nil
 }
 
-func (c *Client) fetch(ctx context.Context, method string, dist DistributionPath, mirror string) (io.ReadCloser, ocispec.Descriptor, error) {
+func (c *Client) fetch(ctx context.Context, method string, dist DistributionPath, mirror *url.URL, brr []httpx.ByteRange) (io.ReadCloser, ocispec.Descriptor, error) {
 	tcKey := dist.Registry + dist.Name
 
 	u := dist.URL()
-	if mirror != "" {
-		mirrorUrl, err := url.Parse(mirror)
-		if err != nil {
-			return nil, ocispec.Descriptor{}, err
-		}
-		u.Scheme = mirrorUrl.Scheme
-		u.Host = mirrorUrl.Host
+	if mirror != nil {
+		u.Scheme = mirror.Scheme
+		u.Host = mirror.Host
+		u.Path = path.Join(mirror.Path, u.Path)
 	}
 	if u.Host == "docker.io" {
 		u.Host = "registry-1.docker.io"
@@ -176,15 +180,18 @@ func (c *Client) fetch(ctx context.Context, method string, dist DistributionPath
 		if err != nil {
 			return nil, ocispec.Descriptor{}, err
 		}
-		req.Header.Set("User-Agent", "spegel")
-		req.Header.Add("Accept", "application/vnd.oci.image.manifest.v1+json")
-		req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
-		req.Header.Add("Accept", "application/vnd.oci.image.index.v1+json")
-		req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.list.v2+json")
+		req.Header.Set(httpx.HeaderUserAgent, "spegel")
+		req.Header.Add(httpx.HeaderAccept, "application/vnd.oci.image.manifest.v1+json")
+		req.Header.Add(httpx.HeaderAccept, "application/vnd.docker.distribution.manifest.v2+json")
+		req.Header.Add(httpx.HeaderAccept, "application/vnd.oci.image.index.v1+json")
+		req.Header.Add(httpx.HeaderAccept, "application/vnd.docker.distribution.manifest.list.v2+json")
+		if len(brr) > 0 {
+			req.Header.Add(httpx.HeaderRange, httpx.FormatMultipartRangeHeader(brr))
+		}
 		token, ok := c.tc.Load(tcKey)
 		if ok {
 			//nolint: errcheck // We know it will be a string.
-			req.Header.Set("Authorization", "Bearer "+token.(string))
+			req.Header.Set(httpx.HeaderAuthorization, "Bearer "+token.(string))
 		}
 		resp, err := c.hc.Do(req)
 		if err != nil {
@@ -192,7 +199,7 @@ func (c *Client) fetch(ctx context.Context, method string, dist DistributionPath
 		}
 		if resp.StatusCode == http.StatusUnauthorized {
 			c.tc.Delete(tcKey)
-			wwwAuth := resp.Header.Get("WWW-Authenticate")
+			wwwAuth := resp.Header.Get(httpx.HeaderWWWAuthenticate)
 			token, err = getBearerToken(ctx, wwwAuth, c.hc)
 			if err != nil {
 				return nil, ocispec.Descriptor{}, err
@@ -202,6 +209,7 @@ func (c *Client) fetch(ctx context.Context, method string, dist DistributionPath
 		}
 		err = httpx.CheckResponseStatus(resp, http.StatusOK, http.StatusPartialContent)
 		if err != nil {
+			httpx.DrainAndClose(resp.Body)
 			return nil, ocispec.Descriptor{}, err
 		}
 
@@ -210,6 +218,7 @@ func (c *Client) fetch(ctx context.Context, method string, dist DistributionPath
 		}
 		desc, err := DescriptorFromHeader(resp.Header)
 		if err != nil {
+			httpx.DrainAndClose(resp.Body)
 			return nil, ocispec.Descriptor{}, err
 		}
 		return resp.Body, desc, nil
@@ -250,11 +259,11 @@ func getBearerToken(ctx context.Context, wwwAuth string, client *http.Client) (s
 	if err != nil {
 		return "", err
 	}
+	defer httpx.DrainAndClose(resp.Body)
 	err = httpx.CheckResponseStatus(resp, http.StatusOK)
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
