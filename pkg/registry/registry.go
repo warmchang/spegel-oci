@@ -359,26 +359,20 @@ func forwardRequest(client *http.Client, bufferPool *sync.Pool, req *http.Reques
 	if err != nil {
 		return err
 	}
-	copyHeader(forwardReq.Header, req.Header)
+	httpx.CopyHeader(forwardReq.Header, req.Header)
 	forwardResp, err := client.Do(forwardReq)
 	if err != nil {
 		return err
 	}
-	defer forwardResp.Body.Close()
-
-	// Clear body and try next if non 200 response.
-	//nolint:staticcheck // Keep things readable.
-	if !(forwardResp.StatusCode == http.StatusOK || forwardResp.StatusCode == http.StatusPartialContent) {
-		_, err = io.Copy(io.Discard, forwardResp.Body)
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("expected mirror to respond with 200 OK but received: %s", forwardResp.Status)
+	defer httpx.DrainAndClose(forwardResp.Body)
+	err = httpx.CheckResponseStatus(forwardResp, http.StatusOK, http.StatusPartialContent)
+	if err != nil {
+		return err
 	}
 
 	// TODO (phillebaba): Is it possible to retry if copy fails half way through?
 	// Copy forward response to response writer.
-	copyHeader(rw.Header(), forwardResp.Header)
+	httpx.CopyHeader(rw.Header(), forwardResp.Header)
 	rw.WriteHeader(http.StatusOK)
 	//nolint: errcheck // Ignore
 	buf := bufferPool.Get().(*[]byte)
@@ -388,12 +382,4 @@ func forwardRequest(client *http.Client, bufferPool *sync.Pool, req *http.Reques
 		return err
 	}
 	return nil
-}
-
-func copyHeader(dst, src http.Header) {
-	for k, vv := range src {
-		for _, v := range vv {
-			dst.Add(k, v)
-		}
-	}
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 
+	"github.com/spegel-org/spegel/pkg/httpx"
 	"github.com/spegel-org/spegel/pkg/oci"
 	"github.com/spegel-org/spegel/pkg/routing"
 )
@@ -236,7 +237,7 @@ func TestMirrorHandler(t *testing.T) {
 				srv.Handler.ServeHTTP(rw, req)
 
 				resp := rw.Result()
-				defer resp.Body.Close()
+				defer httpx.DrainAndClose(resp.Body)
 				b, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 				require.Equal(t, tt.expectedStatus, resp.StatusCode)
@@ -257,16 +258,4 @@ func TestMirrorHandler(t *testing.T) {
 			})
 		}
 	}
-}
-
-func TestCopyHeader(t *testing.T) {
-	t.Parallel()
-
-	src := http.Header{
-		"foo": []string{"2", "1"},
-	}
-	dst := http.Header{}
-	copyHeader(dst, src)
-
-	require.Equal(t, []string{"2", "1"}, dst.Values("foo"))
 }

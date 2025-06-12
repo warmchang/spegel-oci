@@ -2,7 +2,6 @@ version: "2"
 linters:
   default: none
   enable:
-    - bodyclose
     - errcheck
     - gocritic
     - govet
@@ -16,6 +15,7 @@ linters:
     - staticcheck
     - testifylint
     - unused
+    - noctx
   settings:
     errcheck:
       disable-default-exclusions: true

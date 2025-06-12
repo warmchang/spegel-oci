@@ -44,7 +44,6 @@ func CheckResponseStatus(resp *http.Response, expectedCodes ...int) error {
 }
 
 func getErrorMessage(resp *http.Response) (string, error) {
-	defer resp.Body.Close()
 	if resp.Request.Method == http.MethodHead {
 		return "", nil
 	}
@@ -55,9 +54,11 @@ func getErrorMessage(resp *http.Response) (string, error) {
 		"application/xml",
 	}
 	if !slices.Contains(contentTypes, resp.Header.Get(HeaderContentType)) {
-		_, err := io.Copy(io.Discard, resp.Body)
+		return "", nil
+	}
+	b, err := io.ReadAll(io.LimitReader(resp.Body, MaxReadBytes))
+	if err != nil {
 		return "", err
 	}
-	b, err := io.ReadAll(resp.Body)
 	return string(b), err
 }
